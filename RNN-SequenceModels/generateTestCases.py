@@ -3,6 +3,8 @@ from solutions import *
 import numpy as np 
 import math 
 import os,sys
+import copy 
+from random import shuffle
 # import tensorflow as tf
 sys.path.append('../')
 sys.path.append('../../')
@@ -12,111 +14,106 @@ from grader_support import util
 
 
 mFiles = [
-    "rnn_cell_forward.py",
-    "rnn_forward.py",
-    "lstm_cell_forward.py",
-    "lstm_forward.py"
+    "clip.py",
+    "sample.py",
+    "optimize.py",
+    "model.py"
 ]
 
-# generating test cases for rnn_cell_forward 
+
+data = open('dinos.txt', 'r').read()
+data= data.lower()
+chars = list(set(data))
+data_size, vocab_size = len(data), len(chars)
+char_to_ix = { ch:i for i,ch in enumerate(sorted(chars)) }
+ix_to_char = { i:ch for i,ch in enumerate(sorted(chars)) }
 
 
-xt = np.random.randn(3,6)
-a_prev = np.random.randn(4,6)
-Waa = np.random.randn(4,4)
-Wax = np.random.randn(4,3)
-Wya = np.random.randn(2,4)
-ba = np.random.randn(4,1)
-by = np.random.randn(2,1)
-parameters = {"Waa": Waa, "Wax": Wax, "Wya": Wya, "ba": ba, "by": by}
+# set the seed to be able to replicate the same results. 
+np.random.seed(3)
 
-a_next, yt_pred, cache = rnn_cell_forward(xt, a_prev, parameters)
+dWax = np.random.randn(5,3)*10
+dWaa = np.random.randn(5,5)*10
+dWya = np.random.randn(2,5)*10
+db = np.random.randn(5,1)*10
+dby = np.random.randn(2,1)*10
+gradients = {"dWax": dWax, "dWaa": dWaa, "dWya": dWya, "db": db, "dby": dby}
+gradients1 = copy.deepcopy(gradients)
+gradients = clip(gradients, 10)
 
-# -------------------------------------------------------
+# generating test cases for sampling function
+vocab_size = 27
+n = 23
+n_a = 50
+a0 = np.random.randn(n_a, 1) * 0.2
+i0 = 1 # first character is ix_to_char[i0]
+Wax = np.random.randn(n_a, vocab_size)
+Waa = np.random.randn(n_a, n_a)
+Wya = np.random.randn(vocab_size, n_a)
+b = np.random.randn(n_a, 1)
+by = np.random.randn(vocab_size, 1)
+parameters = {"Wax": Wax, "Waa": Waa, "Wya": Wya, "b": b, "by": by}
+indexes = sample(parameters, char_to_ix, 0)
 
-# generating test cases for rnn_forward
+# # generating test cases for optimize function
+vocab_size = 27
+n_a = 50 
+a_prev = np.random.randn(n_a, 1) * 0.2
+Wax = np.random.randn(n_a, vocab_size) * 0.4
+Waa = np.random.randn(n_a, n_a)
+Wya = np.random.randn(vocab_size, n_a)
+b = np.random.randn(n_a, 1)
+by = np.random.randn(vocab_size, 1)
+parameters2 = {"Wax": Wax, "Waa": Waa, "Wya": Wya, "b": b, "by": by}
+parameters3 = copy.deepcopy(parameters2)
+X = [12,3,5,11,22,3]
+Y = [4,14,11,22,25, 26]
+loss, g, a_last = optimize(X, Y, a_prev, parameters2, learning_rate = 0.01)
 
-
-x1 = np.random.randn(3,6,4)
-a01 = np.random.randn(4,6)
-parameters1 = {"Waa": Waa, "Wax": Wax, "Wya": Wya, "ba": ba, "by": by}
-a, y_pred, caches = rnn_forward(x1, a01, parameters1)
-
-# -------------------------------------------------------
-# generate test cases for lstm_cell_forward
-xt1 = np.random.randn(3,4)
-a_prev1 = np.random.randn(5,4)
-c_prev1 = np.random.randn(5,4)
-Wf = np.random.randn(5, 5+3)
-bf = np.random.randn(5,1)
-Wi = np.random.randn(5, 5+3)
-bi = np.random.randn(5,1)
-Wo = np.random.randn(5, 5+3)
-bo = np.random.randn(5,1)
-Wc = np.random.randn(5, 5+3)
-bc = np.random.randn(5,1)
-Wy = np.random.randn(2,5)
-by = np.random.randn(2,1)
-parameters2 = {"Wf": Wf, "Wi": Wi, "Wo": Wo, "Wc": Wc, "Wy": Wy, "bf": bf, "bi": bi, "bo": bo, "bc": bc, "by": by}
-a_next_lstm, c_next_lstm, yt_lstm, cache_lstm = lstm_cell_forward(xt1, a_prev1, c_prev1, parameters2)
-
-# -------------------------------------------------------
-# generate test cases for lstm_cell_forward
-# lstm_forward
-
-np.random.seed(1)
-x2 = np.random.randn(3,10,4)
-a02 = np.random.randn(5,10)
-Wf = np.random.randn(5, 5+3)
-bf = np.random.randn(5,1)
-Wi = np.random.randn(5, 5+3)
-bi = np.random.randn(5,1)
-Wo = np.random.randn(5, 5+3)
-bo = np.random.randn(5,1)
-Wc = np.random.randn(5, 5+3)
-bc = np.random.randn(5,1)
-Wy = np.random.randn(2,5)
-by = np.random.randn(2,1)
-
-parameters3 = {"Wf": Wf, "Wi": Wi, "Wo": Wo, "Wc": Wc, "Wy": Wy, "bf": bf, "bi": bi, "bo": bo, "bc": bc, "by": by}
-
-af, yf, cf, cachesf = lstm_forward(x2, a02, parameters3)
+# generating the model. Killing the print statements.
+with stdout_redirector.stdout_redirected():
+	# generating the model
+	with open("dinos.txt") as f:
+		examples = f.readlines()
+		np.random.seed(0)
+		np.random.shuffle(examples)
+		a = model(examples, ix_to_char, char_to_ix, 200)
 
 def generateTestCases():
 	testCases = {
-	    'rnn_cell_forward': { 
-	        'partId': 'KrqbT',
+	    'clip': { 
+	        'partId': 'sYLqC',
 	        'testCases': [
 	            {
-	                'testInput': (xt, a_prev, parameters),
-	                'testOutput': (a_next, yt_pred, cache)
+	                'testInput': (gradients1, 10),
+	                'testOutput': gradients
 	            }
 	        ]
 	    },
-	    'rnn_forward': { 
-	        'partId': 'CzGAI',
+	    'sample': { 
+	        'partId': 'QxiNo',
 	        'testCases': [
 	            {
-	                'testInput': (x1, a01, parameters1),
-	                'testOutput': (a, y_pred, caches)
+	                'testInput': (parameters, char_to_ix, 0),
+	                'testOutput': indexes
 	            }
 	        ]
 	    },
-	    'lstm_cell_forward': { 
-	        'partId': '7tvdt',
+	    'optimize': { 
+	        'partId': 'x2pxm',
 	        'testCases': [
 	            {
-	                'testInput': (xt1, a_prev1, c_prev1, parameters2),
-	                'testOutput': (a_next_lstm, c_next_lstm, yt_lstm, cache_lstm)
+	                'testInput': (X, Y, a_prev, parameters3),
+	                'testOutput': (loss, g, a_last)
 	            }
 	        ]
 	    },
-	    'lstm_forward': { 
-	        'partId': 'SAQvR',
+	    'model': { 
+	        'partId': 'mJTOb',
 	        'testCases': [
 	            {
-	                'testInput': (x2, a02, parameters3),
-	                'testOutput': (af, yf, cf, cachesf)
+	                'testInput': (examples, ix_to_char, char_to_ix, 200),
+	                'testOutput': a
 	            }
 	        ]
 	    }
